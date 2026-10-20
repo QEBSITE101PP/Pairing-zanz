@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>VANZ CHAT</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #0b141a;
+      color: white;
+      font-family: Arial, sans-serif;
+    }
+    button, input, textarea { font: inherit; }
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 12px;
+      background: #8054d9;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    button:active { opacity: 0.8; }
+    input, textarea {
+      background: #17232c;
+      color: white;
+      border: 1px solid #35434e;
+      border-radius: 10px;
+      padding: 12px;
+      width: 100%;
+      margin: 8px 0;
+    }
+    .hidden { display: none !important; }
+    #setup {
+      padding: 20px;
+      max-width: 600px;
+      margin: auto;
+    }
+    h1 { letter-spacing: 2px; }
+    h1 span { color: #a78bfa; }
+    .card {
+      background: #111b22;
+      padding: 18px;
+      border-radius: 16px;
+      margin-top: 20px;
+    }
+    .roles { display: flex; gap: 10px; }
+    .roles button { flex: 1; }
+    #code {
+      font-size: 30px;
+      letter-spacing: 8px;
+      text-align: center;
+      padding: 18px;
+      background: #0b141a;
+      border-radius: 12px;
+      border: 1px dashed #8054d9;
+      font-weight: bold;
+    }
+    #chat {
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: #111b22;
+      padding: 12px;
+    }
+    .avatar {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: #8054d9;
+      display: grid;
+      place-items: center;
+      font-weight: bold;
+    }
+    .headtext { flex: 1; }
+    #status {
+      font-size: 12px;
+      color: #8de0b4;
+      padding: 7px 12px;
+    }
+    #messages {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+      background: #0b141a;
+    }
+    .msg {
+      align-self: flex-start;
+      max-width: 85%;
+      padding: 11px;
+      background: #202c33;
+      border-radius: 12px;
+      overflow-wrap: anywhere;
+    }
+    .msg.mine {
+      align-self: flex-end;
+      background: #553b8c;
+    }
+    .msg img, .msg video {
+      max-width: 100%;
+      border-radius: 8px;
+    }
+    .msg small {
+      display: block;
+      text-align: right;
+      font-size: 10px;
+      margin-top: 5px;
+      color: #ddd;
+    }
+    footer {
+      background: #111b22;
+      padding: 8px;
+      padding-bottom: calc(8px + env(safe-area-inset-bottom));
+    }
+    .tools {
+      display: flex;
+      gap: 6px;
+      overflow: auto;
+      margin-bottom: 8px;
+    }
+    .tools button {
+      background: #263642;
+      white-space: nowrap;
+      padding: 9px;
+    }
+    .send {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .send textarea {
+      margin: 0;
+      resize: none;
+      border-radius: 22px;
+      flex: 1;
+      min-height: 44px;
+    }
+    .send button { min-height: 44px; }
+    .note {
+      color: #b4c3ce;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <!-- SETUP SCREEN -->
+  <section id="setup">
+    <h1>VANZ <span>CHAT</span></h1>
+    <div class="card">
+      <h3>Chat antar-HP</h3>
+      <p class="note">Pilih peran untuk mulai memasangkan perangkat.</p>
+      <div class="roles">
+        <button onclick="role='controller';show('controller')">PENGONTROL</button>
+        <button onclick="role='receiver';show('receiver')">PENERIMA</button>
+      </div>
+
+      <!-- controller panel -->
+      <div id="controller" class="hidden">
+        <p>Kode pairing:</p>
+        <div id="code">------</div>
+        <button onclick="createPair()">BUAT KODE</button>
+      </div>
+
+      <!-- receiver panel -->
+      <div id="receiver" class="hidden">
+        <input id="joinCode" placeholder="Masukkan kode 6 digit" maxlength="6" inputmode="numeric">
+        <button onclick="joinPair()">GABUNG CHAT</button>
+      </div>
+
+      <p id="setupStatus" class="note">Menghubungkan ke Firebase...</p>
+      <p class="note">Firebase Authentication Anonymous, Realtime Database, dan Storage perlu diaktifkan. Isi databaseURL pada kode di bawah.</p>
+    </div>
+  </section>
+
+  <!-- CHAT SCREEN -->
+  <section id="chat" class="hidden">
+    <header>
+      <div class="avatar">V</div>
+      <div class="headtext">
+        <b>VANZ CHAT</b>
+        <div class="note" id="peer">Online</div>
+      </div>
+      <button onclick="leaveChat()">Keluar</button>
+    </header>
+    <div id="status">Menghubungkan...</div>
+    <div id="messages"></div>
+    <footer>
+      <div class="tools">
+        <button onclick="pick('image/*')">Foto</button>
+        <button onclick="pick('video/*')">Video</button>
+        <button onclick="pick('*/*')">File</button>
+        <button onclick="alert('Video call perlu konfigurasi WebRTC tambahan.')">Video call</button>
+      </div>
+      <div class="send">
+        <textarea id="text" rows="1" placeholder="Ketik pesan..." onkeydown="enterSend(event)"></textarea>
+        <button onclick="sendMsg()">Kirim</button>
+      </div>
+      <input id="file" type="file" hidden onchange="uploadFile(this)">
+    </footer>
+  </section>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+    import { getDatabase, ref, get, set, update, push, onValue } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
+    import { getStorage, ref as sref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
+
+    /* GANTI databaseURL dengan URL dari Firebase Console */
+    const firebaseConfig = {
+      apiKey: "AIzaSyCIYwvzvlJ5gJF4HANQQT8LypKKE2kLuDw",
+      authDomain: "vanzpairing.firebaseapp.com",
+      databaseURL: "https://vanzpairing-default-rtdb.firebaseio.com",
+      projectId: "vanzpairing",
+      storageBucket: "vanzpairing.firebasestorage.app",
+      messagingSenderId: "646133445226",
+      appId: "1:646133445226:web:d2a04f9d0ab2fb3f571013"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getDatabase(app);
+    const storage = getStorage(app);
+
+    let uid = null, role = null, room = null, stopMessages = null;
+
+    const $ = id => document.getElementById(id);
+
+    window.show = id => {
+      $("controller").classList.add("hidden");
+      $("receiver").classList.add("hidden");
+      $(id).classList.remove("hidden");
+    };
+
+    // auth state
+    onAuthStateChanged(auth, u => {
+      if (u) {
+        uid = u.uid;
+        $("setupStatus").textContent = "Firebase siap. Pilih peran.";
+      }
+    });
+
+    try {
+      await signInAnonymously(auth);
+    } catch (e) {
+      $("setupStatus").textContent = "Login gagal: " + e.message;
+    }
+
+    function randomCode() {
+      return String(Math.floor(100000 + Math.random() * 900000));
+    }
+
+    // controller creates pair code
+    window.createPair = async () => {
+      if (!uid) return alert("Tunggu Firebase siap.");
+      if (firebaseConfig.databaseURL.includes("PASTE_")) {
+        alert("Isi databaseURL di kode HTML dahulu."); return;
+      }
+      try {
+        let code = randomCode();
+        let roomRef = ref(db, "pairCodes/" + code);
+        while ((await get(roomRef)).exists()) {
+          code = randomCode();
+          roomRef = ref(db, "pairCodes/" + code);
+        }
+        room = code;
+        await set(roomRef, {
+          controllerUid: uid,
+          receiverUid: null,
+          active: true,
+          createdAt: Date.now()
+        });
+        $("code").textContent = code;
+        $("setupStatus").textContent = "Kode dibuat. Tunggu penerima bergabung.";
+
+        onValue(roomRef, s => {
+          if (s.val()?.receiverUid) openChat(code);
+        });
+      } catch (e) {
+        alert("Gagal membuat kode: " + e.message);
+      }
+    };
+
+    // receiver joins with code
+    window.joinPair = async () => {
+      const code = $("joinCode").value.replace(/\D/g, "");
+      if (code.length !== 6) return alert("Masukkan 6 digit kode.");
+      try {
+        const roomRef = ref(db, "pairCodes/" + code);
+        const snap = await get(roomRef), data = snap.val();
+        if (!data || !data.active) return alert("Kode tidak ditemukan.");
+        if (data.controllerUid === uid) return alert("Gunakan perangkat lain.");
+        if (data.receiverUid && data.receiverUid !== uid) return alert("Kode sudah digunakan.");
+        await update(roomRef, { receiverUid: uid });
+        openChat(code);
+      } catch (e) {
+        alert("Gagal bergabung: " + e.message);
+      }
+    };
+
+    // open chat room
+    function openChat(code) {
+      room = code;
+      $("setup").classList.add("hidden");
+      $("chat").classList.remove("hidden");
+      $("peer").textContent = "Ruang " + code;
+
+      if (stopMessages) stopMessages();
+
+      stopMessages = onValue(ref(db, "rooms/" + room + "/messages"), snap => {
+        const data = snap.val() || {};
+        $("messages").innerHTML = "";
+        Object.values(data).sort((a, b) => a.time - b.time).forEach(m => {
+          const div = document.createElement("div");
+          div.className = "msg" + (m.uid === uid ? " mine" : "");
+
+          if (m.type === "text") {
+            div.append(document.createTextNode(m.text));
+          } else if (m.type === "image") {
+            const img = document.createElement("img");
+            img.src = m.url;
+            div.append(img);
+          } else if (m.type === "video") {
+            const v = document.createElement("video");
+            v.src = m.url;
+            v.controls = true;
+            div.append(v);
+          } else {
+            const a = document.createElement("a");
+            a.href = m.url;
+            a.textContent = m.name || "Unduh file";
+            a.target = "_blank";
+            a.style.color = "#a78bfa";
+            div.append(a);
+          }
+
+          const small = document.createElement("small");
+          small.textContent = (m.uid === uid ? "Kamu" : "Teman") + " · " + new Date(m.time).toLocaleTimeString();
+          div.append(small);
+          $("messages").append(div);
+        });
+        $("messages").scrollTop = $("messages").scrollHeight;
+      }, e => $("status").textContent = "Database error: " + e.message);
+    }
+
+    // send text message
+    window.sendMsg = async () => {
+      const input = $("text"), text = input.value.trim();
+      if (!text || !room) return;
+      input.value = "";
+      try {
+        await push(ref(db, "rooms/" + room + "/messages"), {
+          uid, text, type: "text", time: Date.now()
+        });
+      } catch (e) {
+        input.value = text;
+        alert("Gagal mengirim: " + e.message);
+      }
+    };
+
+    window.enterSend = e => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendMsg();
+      }
+    };
+
+    // file picker
+    window.pick = accept => {
+      const input = $("file");
+      input.accept = accept;
+      input.click();
+    };
+
+    window.uploadFile = async input => {
+      const file = input.files?.[0];
+      input.value = "";
+      if (!file || !room) return;
+      if (file.size > 50 * 1024 * 1024) return alert("Maksimal file 50 MB.");
+      $("status").textContent = "Mengunggah file...";
+      try {
+        const path = "chatUploads/" + room + "/" + uid + "/" + Date.now() + "_" + file.name.replace(/[^\w.-]/g, "_");
+        const fileRef = sref(storage, path);
+        await uploadBytes(fileRef, file);
+        const url = await getDownloadURL(fileRef);
+        let type = file.type.startsWith("image/") ? "image" :
+                   file.type.startsWith("video/") ? "video" : "file";
+        await push(ref(db, "rooms/" + room + "/messages"), {
+          uid, type, url, name: file.name, time: Date.now()
+        });
+        $("status").textContent = "File terkirim.";
+      } catch (e) {
+        $("status").textContent = "Upload gagal: " + e.message;
+      }
+    };
+
+    // leave chat
+    window.leaveChat = () => {
+      if (stopMessages) stopMessages();
+      stopMessages = null;
+      room = null;
+      $("chat").classList.add("hidden");
+      $("setup").classList.remove("hidden");
+      // reset setup panel view
+      $("controller").classList.add("hidden");
+      $("receiver").classList.add("hidden");
+      $("setupStatus").textContent = "Firebase siap. Pilih peran.";
+      $("code").textContent = "------";
+      $("joinCode").value = "";
+    };
+  </script>
+</body>
+</html>
